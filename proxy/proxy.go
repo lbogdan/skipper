@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"net/http"
 	"net/http/httputil"
@@ -816,7 +817,19 @@ func (p *Proxy) lookupRoute(ctx *context) (rt *routing.Route, params map[string]
 // send a premature error response
 func (p *Proxy) sendError(c *context, id string, code int) {
 	addBranding(c.responseWriter.Header())
-	http.Error(c.responseWriter, http.StatusText(code), code)
+	if code == http.StatusBadGateway {
+		content, err := ioutil.ReadFile("../static/50x.html")
+		if err == nil {
+			c.responseWriter.Header().Add("content-type", "text/html; charset=utf-8")
+			c.responseWriter.WriteHeader(code)
+			c.responseWriter.Write(content)
+		} else {
+			p.log.Errorf("can't read file: %v", err)
+			http.Error(c.responseWriter, http.StatusText(code), code)
+		}
+	} else {
+		http.Error(c.responseWriter, http.StatusText(code), code)
+	}
 	p.metrics.MeasureServe(
 		id,
 		c.metricsHost(),
